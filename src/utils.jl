@@ -56,4 +56,29 @@ function throwdimensionerror()
     throw(ArgumentError("Only physical dimensions 2 and 4 are supported."))
 end
 
+function get_global_cache_update_kwargs(alg::Algorithm)
+    alg == Algorithm("bp") && return get_global_bp_update_kwargs()
+    alg == Algorithm("boundarymps") && return get_global_boundarymps_update_kwargs()
+    error("No update parameters known for that algorithm")
+end
+
+function ITensors.scalar(
+    alg::Algorithm"loopcorrections",
+    tn::AbstractITensorNetwork;
+    max_configuration_size::Int64,
+    (cache!)=nothing,
+    cache_construction_kwargs=default_cache_construction_kwargs(Algorithm("bp"), tn),
+    update_cache=isnothing(cache!),
+    cache_update_kwargs=default_cache_update_kwargs(Algorithm("bp")),
+  )
+    if isnothing(cache!)
+      cache! = Ref(cache(Algorithm("bp"), tn; cache_construction_kwargs...))
+    end
+  
+    if update_cache
+      cache![] = update(cache![]; cache_update_kwargs...)
+    end
+  
+    return scalar(cache![]; alg, max_configuration_size)
+  end
 # 

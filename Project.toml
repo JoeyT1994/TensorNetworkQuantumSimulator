@@ -1,6 +1,6 @@
 name = "TensorNetworkQuantumSimulator"
 uuid = "4de3b72a-362e-43dd-83ff-3f381eda9f9c"
-authors = ["JoeyT1994", "MSRudolph <manuel.rudolph@web.de>"]
+authors = ["JoeyT1994 <jtindall@flatironinstitute.org>", "MSRudolph <manuel.rudolph@web.de>"]
 version = "0.0.0"
 
 [deps]
@@ -21,8 +21,8 @@ TensorOperations = "6aa20fa7-93e2-5fca-9bc0-fbd0db3c71a2"
 Dictionaries = "0.4"
 EinExprs = "0.6.4"
 Graphs = "1.8.0"
-ITensorNetworks = "0.13.2"
-ITensors = "0.8"
+ITensorNetworks = "0.13.3"
+ITensors = "0.9"
 LinearAlgebra = "1.11.0"
 NamedGraphs = "0.6"
 PauliPropagation = "0.2"

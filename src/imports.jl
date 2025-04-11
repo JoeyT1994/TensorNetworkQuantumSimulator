@@ -5,7 +5,7 @@ using Dictionaries: Dictionary, set!
 using Graphs: simplecycles_limited_length, has_edge, SimpleGraph, center, steiner_tree
 
 using NamedGraphs
-using NamedGraphs: AbstractNamedGraph, AbstractGraph, position_graph, rename_vertices, edges, vertextype, add_vertex!, neighbors
+using NamedGraphs: AbstractNamedGraph, AbstractGraph, position_graph, rename_vertices, edges, vertextype, add_vertex!, neighbors, edgeinduced_subgraphs_no_leaves
 using NamedGraphs.GraphsExtensions:
     src,
     dst,
@@ -54,6 +54,9 @@ using ITensorNetworks:
     PartitionEdge,
     Algorithm,
     VidalITensorNetwork,
+    expect,
+    default_cache_construction_kwargs,
+    cache,
     norm_sqr_network,
     update,
     updated_message,

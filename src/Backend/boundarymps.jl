@@ -4,7 +4,7 @@ struct BoundaryMPSCache{BPC,PG} <: AbstractBeliefPropagationCache
     maximum_virtual_dimension::Int64
 end
 
-## Utilities to globally set boundary MPS_update_kwargs 
+## Utilities to globally set boundary MPS_update_kwargs
 const _default_boundarymps_update_alg = "orthogonal"
 const _default_boundarymps_update_niters = 40
 const _default_boundarymps_update_tolerance = 1e-12
@@ -241,7 +241,7 @@ function planargraph_sorted_partitionedges(bmpsc::BoundaryMPSCache, partitionpai
     return PartitionEdge.(es)
 end
 
-#Constructor, inserts missing edge in the planar graph to ensure each partition is connected 
+#Constructor, inserts missing edge in the planar graph to ensure each partition is connected
 #allowing the code to work for arbitrary grids and not just square grids
 function BoundaryMPSCache(
     bpc::BeliefPropagationCache;
@@ -423,7 +423,7 @@ function partition_update(bmpsc::BoundaryMPSCache, args...)
     )
 end
 
-#Move the orthogonality centre one step on an interpartition from the message tensor on pe1 to that on pe2 
+#Move the orthogonality centre one step on an interpartition from the message tensor on pe1 to that on pe2
 function gauge_step(
     alg::Algorithm"orthogonal",
     bmpsc::BoundaryMPSCache,
@@ -443,7 +443,7 @@ function gauge_step(
     return bmpsc
 end
 
-#Move the biorthogonality centre one step on an interpartition from the partition edge pe1 (and its reverse) to that on pe2 
+#Move the biorthogonality centre one step on an interpartition from the partition edge pe1 (and its reverse) to that on pe2
 function gauge_step(
     alg::Algorithm"biorthogonal",
     bmpsc::BoundaryMPSCache,
@@ -762,7 +762,7 @@ function set_interpartition_message(bmpsc::BoundaryMPSCache, M::Union{MPS, MPO},
 end
 
 
-#Update all the message tensors on an interpartition via an n-site fitting procedure 
+#Update all the message tensors on an interpartition via an n-site fitting procedure
 function ITensorNetworks.update(
     alg::Algorithm,
     bmpsc::BoundaryMPSCache,
@@ -821,7 +821,43 @@ function prev_partitionpair(bmpsc::BoundaryMPSCache, partitionpair::Pair)
 end
 
 function generic_apply(O::MPO, M::MPS; kwargs...)
-    length(O) == length(M) && return ITensorMPS.apply(O, M; kwargs...)
+    if length(O) == length(M)
+        O_tensors = ITensor[]
+        out_inds = Dict{Int64, ITensor}()
+
+        for i in 1:length(O)
+            sites = ITensors.siteinds(O, i)
+            if length(sites) < 2 # This is no out index
+                out_inds[i] = ITensor(1.0 + 0.0im, Index(1))
+            end
+        end
+
+        O_tensors = [(
+            if haskey(out_inds, i)
+                O[i] * out_inds[i]
+            else
+                O[i]
+            end
+        ) for i in 1:length(O)]
+        O = ITensorNetwork([i for i in 1:length(O_tensors)], O_tensors)
+        O = ITensorNetworks.combine_linkinds(O)
+        O = ITensorMPS.MPO([O[v] for v in vertices(O)])
+
+        O = ITensorMPS.apply(O, M; kwargs...)
+
+        O_tensors = [(
+            if haskey(out_inds, i)
+                O[i] * out_inds[i]
+            else
+                O[i]
+            end
+        ) for i in 1:length(O)]
+        O = ITensorNetwork([i for i in 1:length(O_tensors)], O_tensors)
+        O = ITensorNetworks.combine_linkinds(O)
+        O = ITensorMPS.MPS([O[v] for v in vertices(O)])
+        O = merge_internal_tensors(O)
+        return O
+    end
 
     O_tensors = ITensor[]
     for i in 1:length(O)
@@ -845,7 +881,7 @@ function ITensorNetworks.update(
     alg::Algorithm"ITensorMPS",
     bmpsc::BoundaryMPSCache,
     partitionpair::Pair;
-    cutoff::Number, 
+    cutoff::Number,
     maxdim::Int,
     kwargs...
 )
@@ -853,7 +889,7 @@ function ITensorNetworks.update(
     O = ITensorMPS.MPO(bmpsc, first(partitionpair))
     O = ITensorMPS.truncate(O; cutoff, maxdim)
     isnothing(prev_pp) && return set_interpartition_message(bmpsc, merge_internal_tensors(O), partitionpair)
-    
+
     M = ITensorMPS.MPS(bmpsc, prev_pp)
     M_out = generic_apply(O, M; cutoff, maxdim)
     return set_interpartition_message(bmpsc, M_out, partitionpair)

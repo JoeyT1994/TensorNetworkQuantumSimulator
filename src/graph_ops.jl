@@ -1,13 +1,3 @@
-function SimpleGraphAlgorithms.edge_color(g::AbstractGraph, k::Int64)
-    pg, vs = position_graph(g), collect(vertices(g))
-    ec_dict = edge_color(UG(pg), k)
-    # returns k vectors which contain the colored/commuting edges
-    return [
-        [(vs[first(first(e))], vs[last(first(e))]) for e in ec_dict if last(e) == i] for
-        i = 1:k
-    ]
-end
-
 """Create heavy-hex lattice geometry"""
 function heavy_hexagonal_lattice(nx::Int64, ny::Int64)
     g = named_hexagonal_lattice_graph(nx, ny)

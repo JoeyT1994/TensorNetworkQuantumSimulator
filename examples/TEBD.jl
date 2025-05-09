@@ -22,14 +22,6 @@ function main()
 
     maxdim, cutoff = 4, 1e-14
     apply_kwargs = (; maxdim, cutoff, normalize = true)
-    #Parameters for BP, as the graph is not a tree (it has loops), we need to specify these
-    set_global_bp_update_kwargs!(;
-        maxiter = 30,
-        tol = 1e-10,
-        message_update_kwargs = (;
-            message_update_function = ms -> make_eigs_real.(ITN.default_message_update(ms))
-        ),
-    )
 
     ψψ = build_bp_cache(ψ)
     h, J = -1.0, -1.0

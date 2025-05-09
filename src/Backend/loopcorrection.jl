@@ -1,12 +1,10 @@
 function ITensors.scalar(
     alg::Algorithm"loopcorrections",
     bp_cache::AbstractBeliefPropagationCache;
-    normalize_cache = true,
     max_configuration_size::Int64,
 )
-    bp_cache = normalize_messages(bp_cache)
     zbp = scalar(bp_cache; alg = "bp")
-    bp_cache = normalize_cache ? normalize(bp_cache) : bp_cache
+    bp_cache = rescale(bp_cache)
     #Count the cycles using NamedGraphs
     egs =
         edgeinduced_subgraphs_no_leaves(partitioned_graph(bp_cache), max_configuration_size)
@@ -15,6 +13,7 @@ function ITensors.scalar(
     return zbp*(1 + sum(ws))
 end
 
+#TODO: What to do with norm case?
 function ITensors.scalar(
     alg::Algorithm"loopcorrections",
     tn::AbstractITensorNetwork;
@@ -22,7 +21,7 @@ function ITensors.scalar(
     (cache!) = nothing,
     cache_construction_kwargs = default_cache_construction_kwargs(Algorithm("bp"), tn),
     update_cache = isnothing(cache!),
-    cache_update_kwargs = default_cache_update_kwargs(Algorithm("bp")),
+    cache_update_kwargs = default_nonposdef_bp_update_kwargs(),
 )
     if isnothing(cache!)
         cache! = Ref(cache(Algorithm("bp"), tn; cache_construction_kwargs...))

@@ -47,7 +47,7 @@ function ITensorNetworks.expect(
     observables::Vector{<:Tuple};
     (cache!) = nothing,
     update_cache = isnothing(cache!),
-    cache_update_kwargs = get_global_cache_update_kwargs(alg),
+    cache_update_kwargs = alg == Algorithm("bp") ? default_posdef_bp_update_kwargs() : ITensorNetworks.default_cache_update_kwargs(alg),
     cache_construction_kwargs = default_cache_construction_kwargs(
         alg,
         QuadraticFormNetwork(ψ),
@@ -101,8 +101,7 @@ where `op` is a string or vector of strings, `qinds` is a vector of indices, and
 function ITensorNetworks.expect(
     ψIψ::AbstractBeliefPropagationCache,
     obs::Tuple;
-    update_cache=false,
-    kwargs...,
+    kwargs...
 )
 
     op_strings, vs, coeff = collectobservable(obs)
@@ -110,8 +109,6 @@ function ITensorNetworks.expect(
 
     ψOψ = insert_observable(ψIψ, obs)
 
-    numerator = region_scalar(ψOψ, [(v, "ket") for v in vs])
-    denominator = region_scalar(ψIψ, [(v, "ket") for v in vs])
     numerator = region_scalar(ψOψ, [(v, "ket") for v in vs])
     denominator = region_scalar(ψIψ, [(v, "ket") for v in vs])
 
@@ -148,9 +145,7 @@ function collectobservable(obs::Tuple)
     qinds = obs[2]
     coeff = length(obs) == 2 ? 1.0 : last(obs)
 
-
     @assert !(op == "" && isempty(qinds))
-
 
     op_vec = [string(o) for o in op]
     qinds_vec = _tovec(qinds)

@@ -9,10 +9,10 @@ const _default_apply_kwargs =
 function ITensors.apply(
     circuit::AbstractVector,
     ψ::ITensorNetwork;
-    bp_update_kwargs = get_global_bp_update_kwargs(),
+    bp_update_kwargs = default_posdef_bp_update_kwargs(),
     kwargs...,
 )
-    ψψ = build_bp_cache(ψ; bp_update_kwargs...)
+    ψψ = build_bp_cache(ψ; cache_update_kwargs = bp_update_kwargs)
     ψ, ψψ, truncation_errors = apply(circuit, ψ, ψψ; kwargs...)
     # given that people used this function, we assume they don't want the cache
     return ψ, truncation_errors
@@ -35,7 +35,7 @@ function ITensors.apply(
     ψ::ITensorNetwork,
     ψψ::BeliefPropagationCache;
     apply_kwargs = _default_apply_kwargs,
-    bp_update_kwargs = get_global_bp_update_kwargs(),
+    bp_update_kwargs = default_posdef_bp_update_kwargs(),
     update_cache = true,
     verbose = false,
 )
@@ -94,10 +94,10 @@ function ITensors.apply(
     gate::Tuple,
     ψ::ITensorNetwork;
     apply_kwargs = _default_apply_kwargs,
-    bp_update_kwargs = get_global_bp_update_kwargs(),
+    bp_update_kwargs = default_posdef_bp_update_kwargs(),
 )
     ψ, ψψ, truncation_error =
-        apply(gate, ψ, build_bp_cache(ψ; bp_update_kwargs...); apply_kwargs)
+        apply(gate, ψ, build_bp_cache(ψ; cache_update_kwargs = bp_update_kwargs); apply_kwargs)
     # because the cache is not passed, we return the state only
     return ψ, truncation_error
 end

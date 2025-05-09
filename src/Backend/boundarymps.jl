@@ -4,59 +4,34 @@ struct BoundaryMPSCache{BPC,PG} <: AbstractBeliefPropagationCache
     maximum_virtual_dimension::Int64
 end
 
-## Utilities to globally set boundary MPS_update_kwargs 
 const _default_boundarymps_update_alg = "orthogonal"
 const _default_boundarymps_update_niters = 40
 const _default_boundarymps_update_tolerance = 1e-12
+const _default_boundarymps_update_cutoff = 1e-12
 
-
-# we make this a Dict that it can be pushed to with kwargs that we haven't thought of
-# TODO: make this is not quite correct for boundary MPS
-const _global_boundarymps_update_kwargs::Dict{Symbol,Any} = Dict(
-    :alg => _default_boundarymps_update_alg,
-    :message_update_kwargs => (;
-        niters = _default_boundarymps_update_niters,
-        tolerance = _default_boundarymps_update_tolerance,
-    ),
-)
-
-function set_global_boundarymps_update_kwargs!(; kwargs...)
-    for (arg, val) in kwargs
-        _global_boundarymps_update_kwargs[arg] = val
-    end
-    return get_global_boundarymps_update_kwargs()
+function default_boundarymps_update_kwargs(bmpsc::BoundaryMPSCache)
+    alg = ITensorNetworks.default_message_update_alg(bmpsc)
+    return (; alg, message_update_kwargs = ITensorNetworks.default_message_update_kwargs(Algorithm(alg), bmpsc))
 end
 
-function get_global_boundarymps_update_kwargs()
-    # return as a named tuple
-    return (; _global_boundarymps_update_kwargs...)
+function default_posdef_boundarymps_update_kwargs()
+    alg = "orthogonal"
+    return (; alg, message_update_kwargs = ITensorNetworks.default_message_update_kwargs(Algorithm(alg)))
 end
 
-function reset_global_boundarymps_update_kwargs!()
-    empty!(_global_bp_update_kwargs)
-    _global_boundarymps_update_kwargs[:alg] = _default_boundarymps_update_alg
-    _global_boundarymps_update_kwargs[:message_update_kwargs] = (;
-        niters = _default_boundarymps_update_niters,
-        tolerance = _default_boundarymps_update_tolerance,
-    )
-    return get_global_boundarymps_update_kwargs()
-end
+ITensorNetworks.default_cache_update_kwargs(alg::Algorithm"boundarymps") = default_posdef_boundarymps_update_kwargs()
 
 ## Frontend functions
 
-function updatecache(bp_cache::BoundaryMPSCache, args...; boundarymps_update_kwargs...)
-    # merge provided kwargs with the defaults
-    boundarymps_update_kwargs =
-        merge(get_global_boundarymps_update_kwargs(), boundarymps_update_kwargs)
-
-    return update(bp_cache, args...; boundarymps_update_kwargs...)
+function updatecache(bmpsc::BoundaryMPSCache, args...; kwargs...)
+    return update(bmpsc, args...; kwargs...)
 end
 
 function build_boundarymps_cache(
     ψ::AbstractITensorNetwork,
     message_rank::Int64;
     cache_construction_kwargs = (;),
-    boundary_mps_kwargs...,
+    cache_update_kwargs = default_posdef_boundarymps_update_kwargs(),
 )
     # build the BP cache
     ψIψ = build_bp_cache(ψ; update_cache = false)
@@ -66,7 +41,7 @@ function build_boundarymps_cache(
         ψIψ,
         message_rank;
         cache_construction_kwargs,
-        boundary_mps_kwargs...,
+        cache_update_kwargs,
     )
 end
 
@@ -75,14 +50,14 @@ function build_boundarymps_cache(
     message_rank::Int64;
     update_cache = true,
     cache_construction_kwargs = (;),
-    boundary_mps_kwargs...,
+    cache_update_kwargs = default_posdef_boundarymps_update_kwargs(),
 )
 
     ψIψ = BoundaryMPSCache(ψIψ; message_rank, cache_construction_kwargs...)
 
     if update_cache
         # update the cache
-        ψIψ = updatecache(ψIψ; boundary_mps_kwargs...)
+        ψIψ = updatecache(ψIψ; cache_update_kwargs...)
     end
 
     return ψIψ
@@ -93,16 +68,16 @@ function build_boundarymps_cache(
     ψ::AbstractITensorNetwork,
     ϕ::AbstractITensorNetwork,
     message_rank::Int64;
-    boundary_mps_kwargs...,
+    kwargs...,
 )
 
     ψϕ = build_bp_cache(ψ, ϕ; update_cache = false)
 
     # convert BP cache to boundary MPS cache, no further update needed
-    return build_boundarymps_cache(ψϕ, message_rank; boundary_mps_kwargs...)
+    return build_boundarymps_cache(ψϕ, message_rank; kwargs...)
 end
 
-
+is_flat(bmpsc::BoundaryMPSCache) = is_flat(bp_cache(bmpsc))
 
 function build_boundarymps_cache(ψIψ::BoundaryMPSCache, args...; kwargs...)
     return ψIψ
@@ -120,10 +95,10 @@ function ITensorNetworks.partitioned_tensornetwork(bmpsc::BoundaryMPSCache)
 end
 ITensorNetworks.messages(bmpsc::BoundaryMPSCache) = messages(bp_cache(bmpsc))
 
-ITensorNetworks.default_message_update_alg(bmpsc::BoundaryMPSCache) = "orthogonal"
+ITensorNetworks.default_message_update_alg(bmpsc::BoundaryMPSCache) = is_flat(bmpsc) ? "ITensorMPS" : "orthogonal"
 
 function ITensorNetworks.default_bp_maxiter(
-    alg::Algorithm"orthogonal",
+    alg::Algorithm,
     bmpsc::BoundaryMPSCache,
 )
     return default_bp_maxiter(partitioned_graph(ppg(bmpsc)))
@@ -134,13 +109,16 @@ function ITensorNetworks.default_edge_sequence(alg::Algorithm, bmpsc::BoundaryMP
     return pair.(default_edge_sequence(ppg(bmpsc)))
 end
 
-function default_message_update_kwargs(alg::Algorithm"orthogonal", bmpsc::BoundaryMPSCache)
-    return (; niters = 50, tolerance = 1e-10)
+function ITensorNetworks.default_message_update_kwargs(alg::Algorithm"orthogonal", args...)
+    return (; niters = _default_boundarymps_update_niters, tolerance = _default_boundarymps_update_tolerance)
+end
+function ITensorNetworks.default_message_update_kwargs(alg::Algorithm"ITensorMPS", bmpsc::BoundaryMPSCache)
+    return (; cutoff = _default_boundarymps_update_cutoff, maxdim = maximum_virtual_dimension(bmpsc))
 end
 default_boundarymps_message_rank(tn::AbstractITensorNetwork) = maxlinkdim(tn)^2
 ITensorNetworks.partitions(bmpsc::BoundaryMPSCache) =
     parent.(collect(partitionvertices(ppg(bmpsc))))
-ITensorNetworks.partitionpairs(bmpsc::BoundaryMPSCache) = pair.(partitionedges(ppg(bmpsc)))
+partitionpairs(bmpsc::BoundaryMPSCache) = pair.(partitionedges(ppg(bmpsc)))
 
 function ITensorNetworks.cache(
     alg::Algorithm"boundarymps",
@@ -161,10 +139,6 @@ function ITensorNetworks.default_cache_construction_kwargs(alg::Algorithm"bounda
             tn,
         )
     )
-end
-
-function ITensorNetworks.default_cache_update_kwargs(alg::Algorithm"boundarymps")
-    return get_global_boundarymps_update_kwargs()
 end
 
 function Base.copy(bmpsc::BoundaryMPSCache)
@@ -845,8 +819,8 @@ function ITensorNetworks.update(
     alg::Algorithm"ITensorMPS",
     bmpsc::BoundaryMPSCache,
     partitionpair::Pair;
-    cutoff::Number, 
-    maxdim::Int,
+    cutoff::Number = _default_boundarymps_update_cutoff, 
+    maxdim::Int = maximum_virtual_dimension(bmpsc),
     kwargs...
 )
     prev_pp = prev_partitionpair(bmpsc, partitionpair)

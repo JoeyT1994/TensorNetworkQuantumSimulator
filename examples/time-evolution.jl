@@ -63,12 +63,6 @@ function main()
     ## A few more advanced options
     # we will still do exactly the same evolution but also do boundary mps for expectation values
 
-    # these kwargs are used every time the BP is updated, but you can pass other kwargs to individual functions 
-    set_global_bp_update_kwargs!(maxiter = 25, tol = 1e-6)
-    set_global_boundarymps_update_kwargs!(
-        message_update_kwargs = (; niters = 20, tolerance = 1e-10),
-    )
-
     # the initial state
     ψ = zerostate(g)
 

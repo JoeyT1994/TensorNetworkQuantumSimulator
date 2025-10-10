@@ -38,20 +38,18 @@ function main()
     # the number of circuit layers
     nl = 20
 
-    #The inds network
-    s = siteinds("S=1/2", g)
     # the initial state (all up, use Float 32 precision)
-    ψ0 = ITensorNetwork(ComplexF32, v -> "↑", s)
+    ψ0 = tensornetworkstate(ComplexF32, v -> "↑", g, "S=1/2")
 
     # max bond dimension for the TN
     apply_kwargs = (maxdim = 5, cutoff = 1e-10, normalize_tensors = false)
 
     # create the BP cache representing the square of the tensor network
-    ψψ = build_normsqr_bp_cache(ψ0)
+    ψ_bpc = BeliefPropagationCache(ψ0)
 
     # an array to keep track of expectations taken via two methods
-    expectations_boundarymps = [real(expect(ψψ, obs))]
-    expectations_bp = [real(expect(ψ0, obs))]
+    #expectations_boundarymps = [real(expect(ψψ, obs))]
+    #expectations_bp = [real(expect(ψ0, obs))]
 
     boundarymps_rank = 4
 
@@ -59,19 +57,17 @@ function main()
     for l = 1:nl
         println("Layer $l")
 
-        t1 = @timed ψψ, errors =
-            apply_gates(layer, ψψ; apply_kwargs, verbose = false);
+        t1 = @timed ψ_bpc, errors =
+            apply_gates(layer, ψ_bpc; apply_kwargs, verbose = false);
 
-        ψ = ket_network(ψψ)
+        #sz_boundarymps = expect(ψ,obs;alg = "boundarymps", message_rank = boundarymps_rank)
+        sz_bp = expect(ψ_bpc,obs)
 
-        sz_boundarymps = expect(ψ,obs;alg = "boundarymps", message_rank = boundarymps_rank)
-        sz_bp = expect(ψψ,obs)
-
-        println("    Took time: $(t1.time) [s]. Max bond dimension: $(maxlinkdim(ψ))")
+        println("    Took time: $(t1.time) [s]. Max bond dimension: $(maxlinkdim(ψ_bpc))")
         println("    Maximum Gate error for layer was $(maximum(errors))")
 
         println("    BP Measured Sigmaz is $(sz_bp)")
-        println("    Boundary MPS Measured Sigmaz is $(sz_boundarymps)")
+        #println("    Boundary MPS Measured Sigmaz is $(sz_boundarymps)")
     end
 end
 

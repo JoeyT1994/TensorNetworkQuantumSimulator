@@ -1,5 +1,5 @@
 # conversion of a tuple circuit to an ITensor circuit
-function toitensor(circuit, sinds::IndsNetwork)
+function toitensor(circuit::Vector, sinds::Dictionary)
     return [toitensor(gate, sinds) for gate in circuit]
 end
 
@@ -29,13 +29,12 @@ function param_rescaling(string::String, param::Number)
 end
 
 #Convert a gate to the corrresponding ITensor
-function toitensor(gate::Tuple, sinds::IndsNetwork)
-
+function toitensor(gate::Tuple, siteinds::Dictionary)
     gate_symbol = gate[1]
     gate_inds = gate[2]
     # if it is a NamedEdge, we need to convert it to a tuple
     gate_inds = _ensuretuple(gate_inds)
-    s_inds = [only(sinds[v]) for v in gate_inds]
+    s_inds = [only(siteinds[v]) for v in gate_inds]
 
     all(map(sind -> dim(sind) == 4, s_inds)) &&
         return toitensor_heisenberg(gate_symbol, gate[3], s_inds)
@@ -88,7 +87,7 @@ function toitensor_heisenberg(generator, θ, indices)
 end
 
 #Return itself as the type is already correct
-function toitensor(gate::ITensor, sinds::IndsNetwork)
+function toitensor(gate::ITensor, sinds::Dictionary)
     return gate
 end
 

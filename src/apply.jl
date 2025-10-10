@@ -1,6 +1,3 @@
-const _default_apply_kwargs =
-    (maxdim = Inf, cutoff = 1e-10, normalize_tensors = true)
-
 function collect_gate_vertices(circuit::Vector{<:ITensor}, bpc::BeliefPropagationCache)
     is_flat(bpc) && return ITensorNetworks.neighbor_vertices.((bpc, ), circuit)
     gate_vertices = ITensorNetworks.neighbor_vertices.((ket_network(bpc), ), circuit)
@@ -16,15 +13,14 @@ Returns the final state and an approximate list of errors when applying each gat
 """
 function apply_gates(
     circuit::Vector,
-    ψ::ITensorNetwork;
-    bp_update_kwargs = default_square_bp_update_kwargs(; cache_is_tree = is_tree(ψ)),
+    ψ::TensorNetworkState;
+    bp_update_kwargs = default_bp_update_kwargs(ψ),
     kwargs...,
 )
     ψ_bpc = BeliefPropagationCache(ψ)
-    initialize_square_bp_messages!(ψ_bpc)
     ψ_bpc = update(ψ_bpc; bp_update_kwargs...)
     ψ_bpc, truncation_errors = apply_gates(circuit, ψ_bpc; bp_update_kwargs, kwargs...)
-    return tensornetwork(ψ_bpc), truncation_errors
+    return network(ψ_bpc), truncation_errors
 end
 
 """
@@ -36,34 +32,27 @@ Returns the final state and an approximate list of errors when applying each gat
 """
 function apply_gates(
     circuit::Vector,
-    bpc::BeliefPropagationCache;
-    s::IndsNetwork = siteinds(bpc),
+    ψ_bpc::BeliefPropagationCache;
     kwargs...,
 )
     gate_vertices = [_tovec(gate[2]) for gate in circuit]
-    if !is_flat(bpc)
-        gate_vertices = [[(v, "ket") for v in _gate_vertices] for _gate_vertices in gate_vertices]
-    end
-    circuit = toitensor(circuit, s)
+    circuit = toitensor(circuit, siteinds(network(ψ_bpc)))
     circuit = [adapt(ComplexF32, gate) for gate in circuit]
-    circuit = [adapt(unspecify_type_parameters(datatype(bpc)), gate) for gate in circuit]
-    return apply_gates(circuit, bpc; gate_vertices, kwargs...)
+    circuit = [adapt(unspecify_type_parameters(datatype(ψ_bpc)), gate) for gate in circuit]
+    return apply_gates(circuit, ψ_bpc; gate_vertices, kwargs...)
 end
 
 function apply_gates(
     circuit::Vector{<:ITensor},
     ψ_bpc::BeliefPropagationCache;
     gate_vertices::Vector = collect_gate_vertices(circuit, ψ_bpc),
-    apply_kwargs = _default_apply_kwargs,
-    bp_update_kwargs = is_flat(ψ_bpc) ? default_square_bp_update_kwargs(; cache_is_tree = is_tree(ψ_bpc)) : default_posdef_bp_update_kwargs(; cache_is_tree = is_tree(ψ_bpc)),
+    apply_kwargs = (; ),
+    bp_update_kwargs = default_bp_update_kwargs(ψ_bpc),
     update_cache = true,
     verbose = false,
-    update_bra_space = !is_flat(ψ_bpc),
     inds_per_site=1
 )
     ψ_bpc = copy(ψ_bpc)
-    # merge all the kwargs with the defaults 
-    apply_kwargs = merge(_default_apply_kwargs, apply_kwargs)
 
     # we keep track of the vertices that have been acted on by 2-qubit gates
     # only they increase the counter
@@ -84,10 +73,9 @@ function apply_gates(
                 println("Updating BP cache")
             end
 
-            t = @timed ψ_bpc = updatecache(ψ_bpc; update_bra_space, bp_update_kwargs...)
+            t = @timed ψ_bpc = update(ψ_bpc; bp_update_kwargs...)
 
             affected_indices = Set{Index{Int64}}()
-
             if verbose
                 println("Done in $(t.time) secs")
             end
@@ -95,12 +83,12 @@ function apply_gates(
         end
 
         # actually apply the gate
-        t = @timed ψ_bpc, truncation_errors[ii] = apply_gate!(gate, ψ_bpc; v⃗ = gate_vertices[ii], update_bra_space, apply_kwargs)
+        t = @timed ψ_bpc, truncation_errors[ii] = apply_gate!(gate, ψ_bpc; v⃗ = gate_vertices[ii], apply_kwargs)
         affected_indices = union(affected_indices, Set(inds(gate)))
     end
 
     if update_cache
-        ψ_bpc = updatecache(ψ_bpc; bp_update_kwargs...)
+        ψ_bpc = update(ψ_bpc; bp_update_kwargs...)
     end
 
     return ψ_bpc, truncation_errors
@@ -112,27 +100,25 @@ function apply_gate!(
     ψ_bpc::BeliefPropagationCache;
     v⃗ = ITensorNetworks.neighbor_vertices(ψ_bpc, gate),
     apply_kwargs = _default_apply_kwargs,
-    update_bra_space = !is_flat(ψ_bpc),
 )
-    envs = length(v⃗) == 1 ? nothing : incoming_messages(ψ_bpc,ITensorNetworks.partitionvertices(ψ_bpc, v⃗))
+    envs = length(v⃗) == 1 ? nothing : incoming_messages(ψ_bpc,v⃗)
 
-    updated_tensors, s_values, err = simple_update(gate, ψ_bpc, v⃗; envs, apply_kwargs...)
+    updated_tensors, s_values, err = simple_update(gate, network(ψ_bpc), v⃗; envs, apply_kwargs...)
 
     if length(v⃗) == 2
         v1, v2 = v⃗
-        pe = partitionedge(ψ_bpc, v1 => v2)
+        e = NamedEdge(v1 => v2)
         ind2 = commonind(s_values, first(updated_tensors))
         δuv = dag(copy(s_values))
         δuv = replaceind(δuv, ind2, ind2')
         map_diag!(sign, δuv, δuv)
         s_values = denseblocks(s_values) * denseblocks(δuv)
-        set_message!(ψ_bpc, pe, dag.(ITensor[s_values]))
-        set_message!(ψ_bpc, reverse(pe), ITensor[s_values])
+        setmessage!(ψ_bpc, e, dag(s_values))
+        setmessage!(ψ_bpc, reverse(e), s_values)
     end
 
     for (i, v) in enumerate(v⃗)
-        setindex_preserve_graph!(ψ_bpc, updated_tensors[i], v)
-        update_bra_space && setindex_preserve_graph!(ψ_bpc, dag(prime(updated_tensors[i])), (first(v), "bra"))
+        setindex_preserve_all!(ψ_bpc, updated_tensors[i], v)
     end
 
     return ψ_bpc, err

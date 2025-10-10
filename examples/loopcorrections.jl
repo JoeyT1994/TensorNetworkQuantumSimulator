@@ -11,6 +11,8 @@ const NG = NamedGraphs
 const G = Graphs
 using NamedGraphs.NamedGraphGenerators: named_grid, named_hexagonal_lattice_graph
 
+using LinearAlgebra: norm
+
 using EinExprs: Greedy
 
 using Random
@@ -27,30 +29,17 @@ function main()
     ]
     for (g, g_str, smallest_loop_size) in gs
         println("Testing for $g_str lattice with $(NG.nv(g)) vertices")
-        s = siteinds("S=1/2", g)
-        ψ = ITN.random_tensornetwork(ComplexF32, s; link_space = χ)
-        s = ITN.siteinds(ψ)
+        ψ = TN.random_tensornetworkstate(ComplexF32, g, "S=1/2"; bond_dimension = χ)
 
-        ψ = normalize(ψ; alg = "bp", cache_update_kwargs = (; maxiter = 10))
+        ψ = normalize(ψ; alg = "bp")
 
-        norm_sqr_bp = inner(ψ, ψ; alg = "loopcorrections", max_configuration_size = 0, cache_update_kwargs = TN.default_posdef_bp_update_kwargs())
-        norm_sqr = inner(
-            ψ,
-            ψ;
-            alg = "loopcorrections",
-            max_configuration_size = 2*(smallest_loop_size) - 1,
-            cache_update_kwargs = TN.default_posdef_bp_update_kwargs()
-        )
-        norm_sqr_exact = inner(
-            ψ,
-            ψ;
-            alg = "exact",
-            contraction_sequence_kwargs = (; alg = "einexpr", optimizer = Greedy()),
-        )
+        norm_bp = norm(ψ; alg = "bp")
+        norm_loopcorrected = norm(ψ; alg = "loopcorrections", max_configuration_size = 2*(smallest_loop_size) - 1)
+        norm_exact = norm(ψ; alg = "exact")
 
-        println("Bp Value for norm is $norm_sqr_bp")
-        println("1st Order Loop Corrected Value for norm is $norm_sqr")
-        println("Exact Value for norm is $norm_sqr_exact")
+        println("Bp Value for norm is $norm_bp")
+        println("1st Order Loop Corrected Value for norm is $norm_loopcorrected")
+        println("Exact Value for norm is $norm_exact")
     end
 end
 

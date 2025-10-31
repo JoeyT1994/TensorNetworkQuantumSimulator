@@ -106,36 +106,3 @@ function entanglement(alg::Algorithm"bp", tns::TensorNetworkState, e::NamedEdge;
     bp_cache = update(bp_cache)
     return entanglement(bp_cache, e)
 end
-
-function truncate!(bp_cache::BeliefPropagationCache; maxdim = nothing, cutoff = nothing, kwargs...)
-    return symmetric_gauge!(bp_cache; maxdim, cutoff, kwargs...)
-end
-
-function ITensors.truncate(bp_cache::BeliefPropagationCache; maxdim = nothing, cutoff = nothing, kwargs...)
-    bp_cache = copy(bp_cache)
-    return truncate!(bp_cache; maxdim, cutoff, kwargs...)
-end
-
-function ITensors.truncate(alg::Algorithm"bp", tns::TensorNetworkState; maxdim = nothing, cutoff = nothing, cache_update_kwargs = (; maxiter = 40), kwargs...)
-    bp_cache = BeliefPropagationCache(tns)
-    bp_cache = update(bp_cache; cache_update_kwargs...)
-    return network(truncate(bp_cache; maxdim, cutoff, kwargs...))
-end
-
-"""
-    truncate(tns::TensorNetworkState; alg, args...; kwargs...)
-    Truncate the bonds of a `TensorNetworkState` using the specified algorithm.
-    The supported algorithms are:
-    - `"bp"`: Truncate using Belief Propagation.
-    # Arguments
-    - `tns::TensorNetworkState`: The tensor network state to be truncated.
-    - `alg::String`: The truncation algorithm to use. Default is `nothing`, so it must be specified explicitly.
-    - `args...`: Additional positional arguments specific to the chosen algorithm. These include cache update arguments in the form of a `NamedTuple` cache_update_kwargs.
-    - `kwargs...`: Additional keyword arguments specific to the chosen algorithm. These include options like `maxdim` and `cutoff` for bond dimension truncation.
-    # Returns
-    - The truncated `tns::TensorNetworkState`.
-"""
-function ITensors.truncate(tns::TensorNetworkState, args...; alg, kwargs...)
-    algorithm_check(tns, "truncate", alg)
-    return truncate(Algorithm(alg), tns, args...; kwargs...)
-end

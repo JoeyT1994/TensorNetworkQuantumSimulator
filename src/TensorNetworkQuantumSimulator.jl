@@ -22,6 +22,7 @@ include("inner.jl")
 include("normalize.jl")
 include("sampling.jl")
 include("symmetric_gauge.jl")
+include("truncate.jl")
 
 
 export

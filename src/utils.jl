@@ -47,7 +47,7 @@ function algorithm_check(tns::Union{AbstractBeliefPropagationCache, TensorNetwor
         if !((tns isa BoundaryMPSCache) || (tns isa TensorNetworkState))
             return error("Expected BoundaryMPSCache or TensorNetworkState for 'boundarymps' algorithm, got $(typeof(tns))")
         end
-        if f ∈ ["normalize", "entanglement", "truncate"]
+        if f ∈ ["normalize", "entanglement"]
             return error("boundarymps contraction not supported for this functionality yet")
         end
     elseif alg == "exact"
